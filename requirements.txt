@@ -10,4 +10,5 @@ python-multipart>=0.0.9
 itsdangerous>=2.2.0
 aiofiles>=24.1.0
 vercel-sdk>=0.0.8
+greenlet
 
