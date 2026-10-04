@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{README.md,.env.example,ANDROID_INTEGRATION.md,uploads/**}"
+    }
+  }
+}
