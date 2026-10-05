@@ -4,8 +4,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from vercel.blob import AsyncBlobClient
 
+from app.blob import upload_blob
 from app.database import get_db
 from app.dependencies import require_user
 from app.models import User
@@ -121,21 +121,16 @@ async def upload_profile_image(
     pathname = f"avatars/avatar_{user_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}.{ext}"
 
     file_bytes = await profile_image.read()
-
-    async with AsyncBlobClient() as blob:  # reads BLOB_READ_WRITE_TOKEN from env
-        uploaded = await blob.put(
-            pathname,
-            file_bytes,
-            access="public",
-            content_type=profile_image.content_type,
-        )
+    blob_url = await upload_blob(
+        pathname, file_bytes, profile_image.content_type or "application/octet-stream"
+    )
 
     user = await db.get(User, user_id)
-    user.profile_image = uploaded.url
+    user.profile_image = blob_url
     await db.commit()
 
     return {
         "success": True,
         "message": "Profile picture updated successfully.",
-        "profile_image": uploaded.url,
+        "profile_image": blob_url,
     }
