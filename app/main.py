@@ -1,8 +1,12 @@
+import logging
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
+
+logger = logging.getLogger("biyahe_api")
 
 from app.config import settings
 from app.routers import (
@@ -58,6 +62,24 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     # same flavor as the PHP endpoints' single validation message.
     first_error = exc.errors()[0] if exc.errors() else {"msg": "Invalid request."}
     return JSONResponse(status_code=400, content={"success": False, "message": first_error["msg"]})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Without this, any bug that isn't an HTTPException (an import error, a
+    # bad SDK call, a typo - anything) falls through to Starlette's default
+    # handler, which returns a *plain text* "Internal Server Error" body.
+    # That silently breaks every client here, since both the Android app and
+    # the admin site always call response.json() / JSONObject(responseText)
+    # and assume JSON - a non-JSON body throws a parse exception on their
+    # side that masks the real error. This is the same safety net the old
+    # PHP files got for free from their try/catch (PDOException $e) blocks
+    # around every handler.
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "message": "Server error. Please try again later."},
+    )
 
 
 # ------------------------------------------------------------------ routers

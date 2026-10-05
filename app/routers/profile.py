@@ -29,6 +29,22 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 # for local dev, pull it with `vercel env pull`).
 
 
+def _safe_avatar_url(profile_image: str | None) -> str | None:
+    """
+    Some users still have a profile_image value left over from before the
+    Vercel Blob migration - the old PHP upload_profile_image.php stored a
+    bare filename like "avatar_22_1790818407.jpg", not a URL. That old file
+    lived on the old PHP server's local disk, which no longer exists, so
+    there's no way to actually recover it. Returning the bare filename
+    as-is makes Android's Glide try to load it as a local file path and
+    crash (FileNotFoundException) - so treat anything that isn't a real URL
+    as "no avatar" instead of returning something unusable.
+    """
+    if profile_image and profile_image.startswith(("http://", "https://")):
+        return profile_image
+    return None
+
+
 # -------------------------------------------------------------- get_profile.php
 @router.get("/profile")
 async def get_profile(user_id: int = Depends(require_user), db: AsyncSession = Depends(get_db)):
@@ -41,7 +57,7 @@ async def get_profile(user_id: int = Depends(require_user), db: AsyncSession = D
         "user_id": user.user_id,
         "username": user.username,
         "email": user.email,
-        "profile_image": user.profile_image,  # already a full Blob URL, or None
+        "profile_image": _safe_avatar_url(user.profile_image),
         "date_created": user.date_created,
     }
 

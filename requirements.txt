@@ -9,6 +9,5 @@ bcrypt>=4.1.0
 python-multipart>=0.0.9
 itsdangerous>=2.2.0
 aiofiles>=24.1.0
-vercel-sdk>=0.0.8
-greenlet
-
+vercel>=0.11.0
+httpx>=0.27.0
