@@ -29,6 +29,10 @@ async def upload_blob(pathname: str, file_bytes: bytes, content_type: str) -> st
                 "authorization": f"Bearer {settings.BLOB_READ_WRITE_TOKEN}",
                 "x-api-version": _BLOB_API_VERSION,
                 "x-content-type": content_type,
+                # Required - the official SDK always sends this (its put()
+                # call takes `access` as a mandatory option), and omitting
+                # it is what was causing the 400 Bad Request here.
+                "x-vercel-blob-access": "public",
                 # We already make pathnames unique ourselves (timestamp + a
                 # random hex suffix in profile.py), so skip Vercel's own
                 # auto-suffixing - keeps the returned URL predictable.
@@ -36,5 +40,15 @@ async def upload_blob(pathname: str, file_bytes: bytes, content_type: str) -> st
             },
             content=file_bytes,
         )
-        response.raise_for_status()
+        if response.is_error:
+            # Surface Vercel's actual error body (e.g. "missing x-content-type"
+            # or similar) in the exception, instead of just the generic
+            # "400 Bad Request" httpx.raise_for_status() gives on its own -
+            # that's the difference between guessing at the cause and
+            # knowing it from the next log entry.
+            raise httpx.HTTPStatusError(
+                f"Vercel Blob upload failed ({response.status_code}): {response.text}",
+                request=response.request,
+                response=response,
+            )
         return response.json()["url"]
