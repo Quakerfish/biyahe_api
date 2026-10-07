@@ -20,7 +20,9 @@ def _serialize_list_item(r: Route) -> dict:
         "destination_terminal_id": r.destination_terminal_id,
         "origin_name": r.origin.terminal_name,
         "destination_name": r.destination.terminal_name,
-        "is_active": r.is_active,
+        "status": r.status,
+        "base_fare": float(r.base_fare) if r.base_fare is not None else None,
+        "description": r.description,
     }
 
 
@@ -67,12 +69,14 @@ async def create_route(
     payload: RouteIn, admin_id: int = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ):
     route = Route(
-        created_by=admin_id,
+        created_by_admin_id=admin_id,
         origin_terminal_id=payload.origin_terminal_id,
         destination_terminal_id=payload.destination_terminal_id,
         route_code=payload.route_code,
         vehicle_type=payload.vehicle_type,
-        is_active=payload.is_active,
+        status=payload.status,
+        base_fare=payload.base_fare,
+        description=payload.description,
     )
     route.waypoints = [
         Waypoint(sequence_no=wp.sequence_no, latitude=wp.latitude, longitude=wp.longitude)
@@ -102,7 +106,9 @@ async def update_route(
     route.destination_terminal_id = payload.destination_terminal_id
     route.route_code = payload.route_code
     route.vehicle_type = payload.vehicle_type
-    route.is_active = payload.is_active
+    route.status = payload.status
+    route.base_fare = payload.base_fare
+    route.description = payload.description
 
     # Replace waypoints wholesale, same as the PHP DELETE-then-INSERT.
     route.waypoints.clear()

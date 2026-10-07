@@ -11,9 +11,11 @@ logger = logging.getLogger("biyahe_api")
 from app.config import settings
 from app.routers import (
     admin_auth,
+    admin_management,
     analytics,
     dashboard,
     profile,
+    route_ratings,
     routes,
     saved_routes,
     terminals,
@@ -84,12 +86,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 # ------------------------------------------------------------------ routers
 app.include_router(admin_auth.router)
+app.include_router(admin_management.router)
 app.include_router(user_auth.router)
 app.include_router(profile.router)
 app.include_router(dashboard.router)
 app.include_router(analytics.router)
 app.include_router(terminals.router)
 app.include_router(routes.router)
+app.include_router(route_ratings.router)
 app.include_router(saved_routes.router)
 app.include_router(user_routes.router)
 

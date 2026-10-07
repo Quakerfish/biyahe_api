@@ -39,6 +39,25 @@ class AdminOut(BaseModel):
     admin_uuid: str
     username: str
     email: EmailStr
+    status: str
+    role: str
+
+
+class AdminApprovalOut(BaseModel):
+    admin_id: int
+    admin_uuid: str
+    username: str
+    email: EmailStr
+    status: str
+    role: str
+
+
+class AdminStatusUpdateIn(BaseModel):
+    status: Literal["Waiting Approval", "Approved", "Blocked"]
+
+
+class AdminRoleUpdateIn(BaseModel):
+    role: Literal["admin", "superadmin"]
 
 
 class AdminProfileUpdateIn(BaseModel):
@@ -94,6 +113,8 @@ class TerminalIn(BaseModel):
     terminal_name: str
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    status: Literal["Active", "Inactive"] = "Active"
+    description: str | None = None
 
     @field_validator("terminal_name")
     @classmethod
@@ -109,6 +130,24 @@ class TerminalOut(BaseModel):
     terminal_name: str
     latitude: float | None
     longitude: float | None
+    status: str
+    description: str | None
+    image_url: str | None
+
+
+class TerminalRouteSummaryOut(BaseModel):
+    """One route passing through a terminal - used in the terminal detail response."""
+
+    route_id: int
+    route_code: str
+    vehicle_type: str
+    origin_name: str
+    destination_name: str
+    status: str
+
+
+class TerminalDetailOut(TerminalOut):
+    routes: list[TerminalRouteSummaryOut]
 
 
 # ---------------------------------------------------------------------- route
@@ -129,7 +168,9 @@ class RouteIn(BaseModel):
     vehicle_type: Literal["Traditional", "Modern"]
     origin_terminal_id: int
     destination_terminal_id: int
-    is_active: bool = True
+    status: Literal["Active", "Inactive"] = "Active"
+    base_fare: float | None = Field(default=None, ge=0)
+    description: str | None = None
     waypoints: list[WaypointIn]
 
     @field_validator("route_code")
@@ -164,7 +205,9 @@ class RouteListItemOut(BaseModel):
     destination_terminal_id: int
     origin_name: str
     destination_name: str
-    is_active: bool
+    status: str
+    base_fare: float | None
+    description: str | None
 
 
 class RouteDetailOut(RouteListItemOut):
@@ -173,3 +216,38 @@ class RouteDetailOut(RouteListItemOut):
 
 class SavedRouteOut(RouteListItemOut):
     date_saved: datetime | None
+
+
+# ------------------------------------------------------------------ ratings
+class RouteRatingIn(BaseModel):
+    route_accuracy_rating: int = Field(ge=1, le=5)
+    fare_accuracy_rating: int = Field(ge=1, le=5)
+    comment: str | None = None
+
+    @field_validator("comment")
+    @classmethod
+    def comment_length(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 500:
+            raise ValueError("Comments must be 500 characters or fewer.")
+        return v or None
+
+
+class RouteRatingOut(BaseModel):
+    route_accuracy_rating: int
+    fare_accuracy_rating: int
+    comment: str | None
+    date_created: datetime
+    date_updated: datetime
+
+
+class RouteRatingSummaryOut(BaseModel):
+    """Aggregate ratings for a route, plus the current user's own rating if they've rated it."""
+
+    route_id: int
+    rating_count: int
+    average_route_accuracy: float | None
+    average_fare_accuracy: float | None
+    my_rating: RouteRatingOut | None

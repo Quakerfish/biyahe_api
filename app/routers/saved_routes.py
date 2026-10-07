@@ -21,7 +21,7 @@ async def list_saved_routes(user_id: int = Depends(require_user), db: AsyncSessi
                 selectinload(SavedRoute.route).selectinload(Route.origin),
                 selectinload(SavedRoute.route).selectinload(Route.destination),
             )
-            .where(SavedRoute.user_id == user_id)
+            .where(SavedRoute.saved_by_user_id == user_id)
             .order_by(SavedRoute.date_created.desc())
         )
     ).scalars().all()
@@ -35,7 +35,8 @@ async def list_saved_routes(user_id: int = Depends(require_user), db: AsyncSessi
             "destination_terminal_id": sr.route.destination_terminal_id,
             "origin_name": sr.route.origin.terminal_name,
             "destination_name": sr.route.destination.terminal_name,
-            "is_active": sr.route.is_active,
+            "status": sr.route.status,
+            "base_fare": float(sr.route.base_fare) if sr.route.base_fare is not None else None,
             "date_saved": sr.date_created,
         }
         for sr in rows
@@ -52,8 +53,8 @@ async def save_route(
 
     stmt = (
         pg_insert(SavedRoute)
-        .values(user_id=user_id, route_id=route_id)
-        .on_conflict_do_nothing(index_elements=["user_id", "route_id"])
+        .values(saved_by_user_id=user_id, route_id=route_id)
+        .on_conflict_do_nothing(index_elements=["saved_by_user_id", "route_id"])
         .returning(SavedRoute.route_id, SavedRoute.date_created)
     )
     result = (await db.execute(stmt)).first()
@@ -70,7 +71,7 @@ async def save_route(
 async def unsave_route(
     route_id: int, user_id: int = Depends(require_user), db: AsyncSession = Depends(get_db)
 ):
-    saved = await db.get(SavedRoute, {"user_id": user_id, "route_id": route_id})
+    saved = await db.get(SavedRoute, {"saved_by_user_id": user_id, "route_id": route_id})
     if saved:
         await db.delete(saved)
         await db.commit()

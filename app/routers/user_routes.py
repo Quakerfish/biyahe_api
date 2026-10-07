@@ -28,6 +28,9 @@ async def commuter_routes(
                     "terminal_name": t.terminal_name,
                     "latitude": t.latitude,
                     "longitude": t.longitude,
+                    "status": t.status,
+                    "description": t.description,
+                    "image_url": t.image_url,
                 }
                 for t in rows
             ],
@@ -40,7 +43,7 @@ async def commuter_routes(
             .options(
                 selectinload(Route.origin), selectinload(Route.destination), selectinload(Route.waypoints)
             )
-            .where(Route.route_id == id, Route.is_active.is_(True))
+            .where(Route.route_id == id, Route.status == "Active")
         )
         if not route:
             raise HTTPException(status_code=404, detail="Active route not found.")
@@ -50,6 +53,8 @@ async def commuter_routes(
             "route_id": route.route_id,
             "route_code": route.route_code,
             "vehicle_type": route.vehicle_type,
+            "base_fare": float(route.base_fare) if route.base_fare is not None else None,
+            "description": route.description,
             "origin": {
                 "terminal_id": route.origin.terminal_id,
                 "terminal_name": route.origin.terminal_name,
@@ -73,7 +78,7 @@ async def commuter_routes(
         await db.execute(
             select(Route)
             .options(selectinload(Route.origin), selectinload(Route.destination))
-            .where(Route.is_active.is_(True))
+            .where(Route.status == "Active")
             .order_by(Route.route_code.asc())
         )
     ).scalars().all()
@@ -89,6 +94,7 @@ async def commuter_routes(
                 "destination_terminal_id": r.destination_terminal_id,
                 "origin_name": r.origin.terminal_name,
                 "destination_name": r.destination.terminal_name,
+                "base_fare": float(r.base_fare) if r.base_fare is not None else None,
             }
             for r in rows
         ],

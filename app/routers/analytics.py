@@ -42,8 +42,8 @@ async def analytics(admin_id: int = Depends(require_admin), db: AsyncSession = D
     total_saved = await db.scalar(select(func.count()).select_from(SavedRoute))
     total_waypoints = await db.scalar(select(func.count()).select_from(Waypoint))
 
-    active_routes = await db.scalar(select(func.count()).where(Route.is_active.is_(True)))
-    inactive_routes = await db.scalar(select(func.count()).where(Route.is_active.is_(False)))
+    active_routes = await db.scalar(select(func.count()).where(Route.status == "Active"))
+    inactive_routes = await db.scalar(select(func.count()).where(Route.status == "Inactive"))
     total_routes = active_routes + inactive_routes
     active_route_pct = round((active_routes / total_routes) * 100, 1) if total_routes > 0 else 0.0
 

@@ -17,8 +17,8 @@ async def dashboard(admin_id: int = Depends(require_admin), db: AsyncSession = D
     total_landmarks = await db.scalar(select(func.count()).select_from(Landmark))
     total_waypoints = await db.scalar(select(func.count()).select_from(Waypoint))
 
-    active_routes = await db.scalar(select(func.count()).where(Route.is_active.is_(True)))
-    inactive_routes = await db.scalar(select(func.count()).where(Route.is_active.is_(False)))
+    active_routes = await db.scalar(select(func.count()).where(Route.status == "Active"))
+    inactive_routes = await db.scalar(select(func.count()).where(Route.status == "Inactive"))
     total_routes = active_routes + inactive_routes
 
     # Top terminal hubs by how many routes touch them (origin or destination).

@@ -26,6 +26,8 @@ async def admin_signup(payload: AdminSignupIn, db: AsyncSession = Depends(get_db
     if existing:
         raise HTTPException(status_code=409, detail="Username or email already exists.")
 
+    # status/role default to "Waiting Approval"/"admin" (see models.py) - a
+    # superadmin has to approve the account before it can log in.
     admin = Admin(
         admin_username=payload.username,
         admin_email=payload.email,
@@ -34,7 +36,10 @@ async def admin_signup(payload: AdminSignupIn, db: AsyncSession = Depends(get_db
     db.add(admin)
     await db.commit()
 
-    return {"success": True, "message": "Admin account created successfully."}
+    return {
+        "success": True,
+        "message": "Admin account created. A superadmin needs to approve it before you can log in.",
+    }
 
 
 @router.post("/login")
@@ -44,6 +49,15 @@ async def admin_login(payload: AdminLoginIn, request: Request, db: AsyncSession 
     if not admin or not verify_password(payload.password, admin.admin_password):
         await asyncio.sleep(0.3)  # mirrors the PHP usleep() brute-force mitigation
         raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    # Enforce the approval workflow - correct credentials alone aren't
+    # enough once status matters.
+    if admin.status == "Waiting Approval":
+        raise HTTPException(
+            status_code=403, detail="Your account is still waiting for a superadmin to approve it."
+        )
+    if admin.status == "Blocked":
+        raise HTTPException(status_code=403, detail="Your account has been blocked.")
 
     # Session fixation protection: rotate the session.
     request.session.clear()
@@ -59,6 +73,8 @@ async def admin_login(payload: AdminLoginIn, request: Request, db: AsyncSession 
             "admin_uuid": admin.admin_uuid,
             "username": admin.admin_username,
             "email": admin.admin_email,
+            "status": admin.status,
+            "role": admin.role,
         },
     }
 
@@ -78,6 +94,8 @@ async def get_admin_profile(
             "admin_uuid": admin.admin_uuid,
             "username": admin.admin_username,
             "email": admin.admin_email,
+            "status": admin.status,
+            "role": admin.role,
         },
     }
 
