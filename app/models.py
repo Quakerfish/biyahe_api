@@ -76,7 +76,7 @@ class Terminal(Base):
     status: Mapped[str] = mapped_column(String(20), default="Active")
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     # Single photo (a Vercel Blob URL), same pattern as User.profile_image.
-    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)  # actual DB column is `text`, unbounded
 
 
 class Landmark(Base):

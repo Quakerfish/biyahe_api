@@ -391,4 +391,8 @@ CREATE TABLE public.route_ratings (
 - Don't assume admin approval is a one-time login check. `status` is re-verified on every admin-authenticated request.
 - Don't assume any bearer-token auth. Everything is cookie sessions.
 - Don't assume a bare `user_id` column on child tables: `saved_routes` uses `saved_by_user_id`, `route_ratings` uses `rated_by_user_id`.
+<<<<<<< HEAD
 - Don't assume `users.suspended_until` blocks anything. It isn't enforced yet.
+=======
+- Don't assume `users.suspended_until` blocks anything. It isn't enforced yet.
+>>>>>>> 32c76dd (API Reference Schema)
