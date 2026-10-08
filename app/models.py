@@ -1,21 +1,50 @@
+import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Uuid, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum as SQLEnum,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 
+# ==========================================
+# PostgreSQL Enum Mappings (Option A)
+# ==========================================
+class ActiveStatus(str, enum.Enum):
+    ACTIVE = "Active"
+    INACTIVE = "Inactive"
+
+
+class AdminApprovalStatus(str, enum.Enum):
+    WAITING_APPROVAL = "Waiting Approval"
+    APPROVED = "Approved"
+    BLOCKED = "Blocked"
+
+
+class AdminRole(str, enum.Enum):
+    ADMIN = "admin"
+    SUPERADMIN = "superadmin"
+
+
+# ==========================================
+# ORM Models
+# ==========================================
 class Admin(Base):
     __tablename__ = "admins"
 
     admin_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Uuid(as_uuid=False): your actual Supabase column is a native Postgres
-    # `uuid` type (not varchar), which asyncpg decodes as a Python UUID
-    # object - and UUID isn't JSON-serializable, which breaks session cookie
-    # encoding. as_uuid=False tells SQLAlchemy to hand it to app code as a
-    # plain str instead.
     admin_uuid: Mapped[str] = mapped_column(
         Uuid(as_uuid=False), unique=True, default=lambda: str(uuid.uuid4())
     )
@@ -23,13 +52,24 @@ class Admin(Base):
     admin_password: Mapped[str] = mapped_column(String(255))
     admin_email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
 
-    # "Waiting Approval" | "Approved" | "Blocked" - gates login entirely,
-    # checked fresh on every admin-authenticated request (not just at
-    # login), so blocking an admin takes effect immediately even if they're
-    # already mid-session.
-    status: Mapped[str] = mapped_column(String(20), default="Waiting Approval")
-    # "admin" | "superadmin" - superadmin can approve/block other admins.
-    role: Mapped[str] = mapped_column(String(20), default="admin")
+    status: Mapped[AdminApprovalStatus] = mapped_column(
+        SQLEnum(
+            AdminApprovalStatus,
+            name="admin_approval_status",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=AdminApprovalStatus.WAITING_APPROVAL,
+    )
+    role: Mapped[AdminRole] = mapped_column(
+        SQLEnum(
+            AdminRole,
+            name="admin_role",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=AdminRole.ADMIN,
+    )
 
     routes_created: Mapped[list["Route"]] = relationship(back_populates="creator")
 
@@ -44,7 +84,6 @@ class User(Base):
     profile_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    # NULL = not suspended. A future timestamp blocks login until then.
     suspended_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     suspension_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -54,8 +93,6 @@ class User(Base):
 class LoginOtp(Base):
     __tablename__ = "login_otps"
 
-    # One pending OTP per user at a time - user_id IS the primary key, so a
-    # new send just overwrites (upsert) the old row rather than piling up.
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True
     )
@@ -72,11 +109,17 @@ class Terminal(Base):
     terminal_name: Mapped[str] = mapped_column(String(150))
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # "Active" | "Inactive" - same active_status enum type Route.status uses.
-    status: Mapped[str] = mapped_column(String(20), default="Active")
+    status: Mapped[ActiveStatus] = mapped_column(
+        SQLEnum(
+            ActiveStatus,
+            name="active_status",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=ActiveStatus.ACTIVE,
+    )
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    # Single photo (a Vercel Blob URL), same pattern as User.profile_image.
-    image_url: Mapped[str | None] = mapped_column(String, nullable=True)  # actual DB column is `text`, unbounded
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class Landmark(Base):
@@ -96,9 +139,16 @@ class Route(Base):
     origin_terminal_id: Mapped[int] = mapped_column(ForeignKey("terminals.terminal_id"))
     destination_terminal_id: Mapped[int] = mapped_column(ForeignKey("terminals.terminal_id"))
     route_code: Mapped[str] = mapped_column(String(50))
-    vehicle_type: Mapped[str] = mapped_column(String(20))  # "Traditional" | "Modern"
-    # "Active" | "Inactive" - replaces the old is_active boolean (migration 003).
-    status: Mapped[str] = mapped_column(String(20), default="Active")
+    vehicle_type: Mapped[str] = mapped_column(String(20))
+    status: Mapped[ActiveStatus] = mapped_column(
+        SQLEnum(
+            ActiveStatus,
+            name="active_status",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=ActiveStatus.ACTIVE,
+    )
     base_fare: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -138,16 +188,12 @@ class SavedRoute(Base):
 class RouteRating(Base):
     __tablename__ = "route_ratings"
 
-    # One rating per user per route (composite PK) - re-rating is an upsert
-    # that overwrites the existing row (and bumps date_updated) rather than
-    # creating a second rating, so the aggregate always reflects each
-    # rider's most current assessment.
     route_id: Mapped[int] = mapped_column(ForeignKey("routes.route_id", ondelete="CASCADE"), primary_key=True)
     rated_by_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True
     )
-    route_accuracy_rating: Mapped[int] = mapped_column(Integer)  # 1-5, CHECK constraint enforced in the DB
-    fare_accuracy_rating: Mapped[int] = mapped_column(Integer)  # 1-5, CHECK constraint enforced in the DB
+    route_accuracy_rating: Mapped[int] = mapped_column(Integer)
+    fare_accuracy_rating: Mapped[int] = mapped_column(Integer)
     comment: Mapped[str | None] = mapped_column(String, nullable=True)
     date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     date_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
