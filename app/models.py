@@ -37,9 +37,8 @@ class AdminRole(str, enum.Enum):
     ADMIN = "admin"
     SUPERADMIN = "superadmin"
 
-
 # ==========================================
-# ORM Models
+# ORM Models 
 # ==========================================
 class Admin(Base):
     __tablename__ = "admins"
