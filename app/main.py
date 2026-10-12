@@ -88,7 +88,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         },
     )
     # This handler runs OUTSIDE CORSMiddleware, so without these headers the browser
-    # reports every 500 as a misleading "blocked by CORS policy" error and hides the
     # real status/message from the admin site's JavaScript.
     origin = request.headers.get("origin")
     if origin and origin in settings.cors_origins_list:

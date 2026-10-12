@@ -150,7 +150,6 @@ async def delete_terminal(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # Postgres FK violation - terminal still referenced by a route.
         raise HTTPException(
             status_code=409,
             detail="This terminal is used as an origin or destination on one or more routes. "

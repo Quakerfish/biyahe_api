@@ -140,7 +140,6 @@ async def update_route(
     route.base_fare = _fare(payload.base_fare)
     route.description = payload.description
 
-    # Replace waypoints wholesale, same as the PHP DELETE-then-INSERT.
     route.waypoints.clear()
     route.waypoints = [
         Waypoint(sequence_no=wp.sequence_no, latitude=wp.latitude, longitude=wp.longitude)
