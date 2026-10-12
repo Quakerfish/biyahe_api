@@ -65,6 +65,36 @@ class AdminProfileUpdateIn(BaseModel):
     email: EmailStr
 
 
+class AdminForgotPasswordIn(BaseModel):
+    username: str
+    email: EmailStr
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        return v
+
+
+class AdminPasswordResetDecisionIn(BaseModel):
+    action: Literal["approve", "reject"]
+
+
+class AdminPasswordChangeIn(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        return v
+
+
 # ----------------------------------------------------------------- user auth
 class UserSignupIn(BaseModel):
     username: str

@@ -37,8 +37,9 @@ class AdminRole(str, enum.Enum):
     ADMIN = "admin"
     SUPERADMIN = "superadmin"
 
+
 # ==========================================
-# ORM Models 
+# ORM Models
 # ==========================================
 class Admin(Base):
     __tablename__ = "admins"
@@ -68,6 +69,14 @@ class Admin(Base):
             values_callable=lambda x: [e.value for e in x],
         ),
         default=AdminRole.ADMIN,
+    )
+
+    # Forgot-password flow: the NEW password is stored hashed here until a
+    # superadmin approves it (then it replaces admin_password) or rejects it
+    # (then both columns are cleared). NULL = no request pending.
+    pending_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_reset_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     routes_created: Mapped[list["Route"]] = relationship(back_populates="creator")

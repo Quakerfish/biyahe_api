@@ -1,13 +1,14 @@
 import asyncio
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import require_admin
 from app.models import Admin
-from app.schemas import AdminOut, AdminProfileUpdateIn, AdminLoginIn, AdminSignupIn
+from app.schemas import AdminForgotPasswordIn, AdminOut, AdminPasswordChangeIn, AdminProfileUpdateIn, AdminLoginIn, AdminSignupIn
 from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api/admin", tags=["admin-auth"])
@@ -39,6 +40,38 @@ async def admin_signup(payload: AdminSignupIn, db: AsyncSession = Depends(get_db
     return {
         "success": True,
         "message": "Admin account created. A superadmin needs to approve it before you can log in.",
+    }
+
+
+@router.post("/forgot-password")
+async def admin_forgot_password(payload: AdminForgotPasswordIn, db: AsyncSession = Depends(get_db)):
+    """
+    Public. Queues a password reset that a superadmin must approve. The new
+    password is hashed and parked in pending_password - the current password
+    keeps working until approval. Username AND email must both match, and the
+    reply is identical whether or not they did, so this can't be used to find
+    out which accounts exist.
+    """
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+
+    admin = await db.scalar(
+        select(Admin).where(
+            Admin.admin_username == payload.username.strip(),
+            func.lower(Admin.admin_email) == payload.email.lower(),
+        )
+    )
+    if admin and admin.status == "Approved":
+        admin.pending_password = hash_password(payload.new_password)
+        admin.password_reset_requested_at = datetime.now(timezone.utc)
+        await db.commit()
+    else:
+        await asyncio.sleep(0.3)
+
+    return {
+        "success": True,
+        "message": "If the details match an approved admin account, a password reset request "
+        "has been sent. A superadmin must approve it before the new password works.",
     }
 
 
@@ -128,3 +161,26 @@ async def update_admin_profile(
         "message": "Profile updated successfully.",
         "admin": {"admin_id": admin_id, "username": payload.username, "email": payload.email},
     }
+
+
+@router.put("/password")
+async def change_admin_password(
+    payload: AdminPasswordChangeIn,
+    admin_id: int = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await db.get(Admin, admin_id)
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin not found.")
+
+    if not verify_password(payload.current_password, admin.admin_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if payload.current_password == payload.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from the current one.")
+
+    admin.admin_password = hash_password(payload.new_password)
+    admin.pending_password = None
+    admin.password_reset_requested_at = None
+    await db.commit()
+
+    return {"success": True, "message": "Password changed successfully."}
