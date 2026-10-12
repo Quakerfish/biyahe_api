@@ -79,14 +79,18 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     # PHP files got for free from their try/catch (PDOException $e) blocks
     # around every handler.
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    response = JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "message": "Server error. Please try again later.",
-            "error_type": type(exc).__name__,  # class name only - the full traceback stays in the Vercel logs
-        },
-    )
+    content = {
+        "success": False,
+        "message": "Server error. Please try again later.",
+        "error_type": type(exc).__name__,  # class name only - the full traceback stays in the Vercel logs
+    }
+    # Signed-in admins (trusted staff) also get the database's own one-line message, so a
+    # failing save can be diagnosed straight from the browser. Anonymous callers never see it.
+    session = request.scope.get("session") or {}
+    if session.get("admin_id"):
+        lines = str(getattr(exc, "orig", None) or exc).strip().splitlines()
+        content["error_detail"] = (lines[0] if lines else "")[:300]
+    response = JSONResponse(status_code=500, content=content)
     # This handler runs OUTSIDE CORSMiddleware, so without these headers the browser
     # reports every 500 as a misleading "blocked by CORS policy" error and hides the
     # real status/message from the admin site's JavaScript.
