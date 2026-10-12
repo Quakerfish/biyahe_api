@@ -1,11 +1,14 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models import Route, Waypoint
+from app.models import ActiveStatus, Route, Terminal, Waypoint
 from app.schemas import RouteIn
 
 router = APIRouter(prefix="/api/routes", tags=["routes"])
@@ -33,6 +36,25 @@ def _serialize_detail(r: Route) -> dict:
         for wp in r.waypoints
     ]
     return data
+
+
+def _fare(value: float | None) -> Decimal | None:
+    # asyncpg is strict about NUMERIC parameters - hand it a Decimal, not a float.
+    return None if value is None else Decimal(str(value))
+
+
+async def _require_terminals(db: AsyncSession, origin_id: int, destination_id: int) -> None:
+    found = set(
+        (
+            await db.scalars(
+                select(Terminal.terminal_id).where(Terminal.terminal_id.in_([origin_id, destination_id]))
+            )
+        ).all()
+    )
+    if origin_id not in found:
+        raise HTTPException(status_code=400, detail="The origin terminal does not exist.")
+    if destination_id not in found:
+        raise HTTPException(status_code=400, detail="The destination terminal does not exist.")
 
 
 async def _get_route_or_404(db: AsyncSession, route_id: int) -> Route:
@@ -68,14 +90,16 @@ async def get_route(route_id: int, admin_id: int = Depends(require_admin), db: A
 async def create_route(
     payload: RouteIn, admin_id: int = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ):
+    await _require_terminals(db, payload.origin_terminal_id, payload.destination_terminal_id)
+
     route = Route(
         created_by_admin_id=admin_id,
         origin_terminal_id=payload.origin_terminal_id,
         destination_terminal_id=payload.destination_terminal_id,
         route_code=payload.route_code,
         vehicle_type=payload.vehicle_type,
-        status=payload.status,
-        base_fare=payload.base_fare,
+        status=ActiveStatus(payload.status),
+        base_fare=_fare(payload.base_fare),
         description=payload.description,
     )
     route.waypoints = [
@@ -83,7 +107,11 @@ async def create_route(
         for wp in payload.waypoints
     ]
     db.add(route)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Could not save the route. Check the terminals and values you entered.")
     await db.refresh(route)
 
     return {"success": True, "route_id": route.route_id}
@@ -102,12 +130,14 @@ async def update_route(
     if not route:
         raise HTTPException(status_code=404, detail="Route not found.")
 
+    await _require_terminals(db, payload.origin_terminal_id, payload.destination_terminal_id)
+
     route.origin_terminal_id = payload.origin_terminal_id
     route.destination_terminal_id = payload.destination_terminal_id
     route.route_code = payload.route_code
     route.vehicle_type = payload.vehicle_type
-    route.status = payload.status
-    route.base_fare = payload.base_fare
+    route.status = ActiveStatus(payload.status)
+    route.base_fare = _fare(payload.base_fare)
     route.description = payload.description
 
     # Replace waypoints wholesale, same as the PHP DELETE-then-INSERT.
@@ -117,7 +147,11 @@ async def update_route(
         for wp in payload.waypoints
     ]
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Could not save the route. Check the terminals and values you entered.")
     return {"success": True, "route_id": route_id}
 
 

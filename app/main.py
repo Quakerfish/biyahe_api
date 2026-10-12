@@ -79,10 +79,23 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     # PHP files got for free from their try/catch (PDOException $e) blocks
     # around every handler.
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
-        content={"success": False, "message": "Server error. Please try again later."},
+        content={
+            "success": False,
+            "message": "Server error. Please try again later.",
+            "error_type": type(exc).__name__,  # class name only - the full traceback stays in the Vercel logs
+        },
     )
+    # This handler runs OUTSIDE CORSMiddleware, so without these headers the browser
+    # reports every 500 as a misleading "blocked by CORS policy" error and hides the
+    # real status/message from the admin site's JavaScript.
+    origin = request.headers.get("origin")
+    if origin and origin in settings.cors_origins_list:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
 
 
 # ------------------------------------------------------------------ routers

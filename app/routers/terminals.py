@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.blob import upload_blob
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models import Route, Terminal
+from app.models import ActiveStatus, Route, Terminal
 from app.schemas import TerminalIn
 
 router = APIRouter(prefix="/api/terminals", tags=["terminals"])
@@ -81,7 +81,7 @@ async def create_terminal(
         terminal_name=payload.terminal_name,
         latitude=payload.latitude,
         longitude=payload.longitude,
-        status=payload.status,
+        status=ActiveStatus(payload.status),
         description=payload.description,
     )
     db.add(terminal)
@@ -104,7 +104,7 @@ async def update_terminal(
     terminal.terminal_name = payload.terminal_name
     terminal.latitude = payload.latitude
     terminal.longitude = payload.longitude
-    terminal.status = payload.status
+    terminal.status = ActiveStatus(payload.status)
     terminal.description = payload.description
     await db.commit()
 
