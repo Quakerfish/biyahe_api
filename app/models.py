@@ -11,10 +11,13 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    TypeDecorator,
     Uuid,
+    cast,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import UserDefinedType
 
 from app.database import Base
 
@@ -36,6 +39,36 @@ class AdminApprovalStatus(str, enum.Enum):
 class AdminRole(str, enum.Enum):
     ADMIN = "admin"
     SUPERADMIN = "superadmin"
+
+
+class _VehicleTypeEnum(UserDefinedType):
+    """Renders as the Postgres enum type `vehicle_type_enum` inside a CAST(...)."""
+
+    cache_ok = True
+
+    def get_col_spec(self, **kw) -> str:
+        return "vehicle_type_enum"
+
+
+class VehicleTypeText(TypeDecorator):
+    """
+    routes.vehicle_type is a native Postgres enum (vehicle_type_enum) in the
+    database. asyncpg sends plain Python strings as VARCHAR, and Postgres
+    refuses to put VARCHAR straight into an enum column ("column vehicle_type
+    is of type vehicle_type_enum but expression is of type character varying").
+
+    This type keeps the attribute a plain str in Python (so values like
+    "Traditional" / "Modern" read and write exactly as before) and wraps every
+    bound value in CAST(... AS vehicle_type_enum) so Postgres accepts it - on
+    INSERT/UPDATE and in WHERE clauses alike. Reads come back as plain strings,
+    so it doesn't depend on which labels the enum currently has.
+    """
+
+    impl = String
+    cache_ok = True
+
+    def bind_expression(self, bindvalue):
+        return cast(bindvalue, _VehicleTypeEnum())
 
 
 # ==========================================
@@ -147,7 +180,7 @@ class Route(Base):
     origin_terminal_id: Mapped[int] = mapped_column(ForeignKey("terminals.terminal_id"))
     destination_terminal_id: Mapped[int] = mapped_column(ForeignKey("terminals.terminal_id"))
     route_code: Mapped[str] = mapped_column(String(50))
-    vehicle_type: Mapped[str] = mapped_column(String(20))
+    vehicle_type: Mapped[str] = mapped_column(VehicleTypeText(20))
     status: Mapped[ActiveStatus] = mapped_column(
         SQLEnum(
             ActiveStatus,
