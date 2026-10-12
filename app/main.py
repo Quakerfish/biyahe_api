@@ -12,6 +12,7 @@ from app.config import settings
 from app.routers import (
     admin_auth,
     admin_management,
+    admin_ratings,
     analytics,
     dashboard,
     profile,
@@ -87,6 +88,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 # ------------------------------------------------------------------ routers
 app.include_router(admin_auth.router)
 app.include_router(admin_management.router)
+app.include_router(admin_ratings.router)
 app.include_router(user_auth.router)
 app.include_router(profile.router)
 app.include_router(dashboard.router)
