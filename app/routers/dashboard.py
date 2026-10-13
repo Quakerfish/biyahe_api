@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -55,16 +56,29 @@ async def dashboard(admin_id: int = Depends(require_admin), db: AsyncSession = D
         if t.latitude is not None and t.longitude is not None
     ]
 
-    landmarks = (await db.execute(select(Landmark))).scalars().all()
-    landmark_features = [
-        {
-            "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [lm.longitude, lm.latitude]},
-            "properties": {"id": lm.landmark_id, "name": lm.landmark_name},
-        }
-        for lm in landmarks
-        if lm.latitude is not None and lm.longitude is not None
-    ]
+    # Active route paths as LineStrings, so the dashboard map can draw every
+    # corridor from this single response (no per-route request).
+    active = (
+        await db.execute(
+            select(Route)
+            .options(selectinload(Route.waypoints))
+            .where(Route.status == "Active")
+            .order_by(Route.route_code.asc())
+        )
+    ).scalars().all()
+    route_features = []
+    for r in active:
+        pts = sorted(r.waypoints, key=lambda w: w.sequence_no)
+        coords = [[w.longitude, w.latitude] for w in pts if w.latitude is not None and w.longitude is not None]
+        if len(coords) < 2:
+            continue
+        route_features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": coords},
+                "properties": {"route_id": r.route_id, "route_code": r.route_code, "waypoints": len(coords)},
+            }
+        )
 
     return {
         "success": True,
@@ -82,6 +96,6 @@ async def dashboard(admin_id: int = Depends(require_admin), db: AsyncSession = D
         "hubs": hubs,
         "map": {
             "terminals": {"type": "FeatureCollection", "features": terminal_features},
-            "landmarks": {"type": "FeatureCollection", "features": landmark_features},
+            "routes": {"type": "FeatureCollection", "features": route_features},
         },
     }
