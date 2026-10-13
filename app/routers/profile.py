@@ -2,19 +2,20 @@ import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.blob import upload_blob
 from app.database import get_db
 from app.dependencies import require_user
-from app.models import User
+from app.models import RouteRating, SavedRoute, User
 from app.schemas import UserProfileUpdateIn
 from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api", tags=["user-profile"])
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_AVATAR_BYTES = 5 * 1024 * 1024
 
 # NOTE ON STORAGE: Vercel's Python functions have no persistent local disk
 # (each invocation is a fresh, stateless container), so this no longer writes
@@ -24,7 +25,7 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 # filename, so _avatar_url()'s old "rebuild the URL from a filename" step is
 # gone; the DB value is already the URL to hand back to clients.
 #
-# Needs BLOB_READ_WRITE_TOKEN set in the environment (Vercel sets this
+# Needs BIYAHE_READ_WRITE_TOKEN set in the environment (Vercel sets this
 # automatically once you create a Blob store and link it to the project;
 # for local dev, pull it with `vercel env pull`).
 
@@ -52,6 +53,13 @@ async def get_profile(user_id: int = Depends(require_user), db: AsyncSession = D
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
+    saved_routes_count = await db.scalar(
+        select(func.count()).select_from(SavedRoute).where(SavedRoute.saved_by_user_id == user_id)
+    )
+    ratings_count = await db.scalar(
+        select(func.count()).select_from(RouteRating).where(RouteRating.rated_by_user_id == user_id)
+    )
+
     return {
         "success": True,
         "user_id": user.user_id,
@@ -59,6 +67,8 @@ async def get_profile(user_id: int = Depends(require_user), db: AsyncSession = D
         "email": user.email,
         "profile_image": _safe_avatar_url(user.profile_image),
         "date_created": user.date_created,
+        "saved_routes_count": saved_routes_count or 0,
+        "ratings_count": ratings_count or 0,
     }
 
 
@@ -95,7 +105,7 @@ async def update_profile(
 
     if payload.new_password:
         if not payload.current_password or not verify_password(payload.current_password, user.password):
-            raise HTTPException(status_code=401, detail="Current password is incorrect.")
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
         user.password = hash_password(payload.new_password)
 
     user.username = payload.username
@@ -121,6 +131,8 @@ async def upload_profile_image(
     pathname = f"avatars/avatar_{user_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}.{ext}"
 
     file_bytes = await profile_image.read()
+    if len(file_bytes) > MAX_AVATAR_BYTES:
+        raise HTTPException(status_code=413, detail="Image is too large. Maximum size is 5 MB.")
     blob_url = await upload_blob(
         pathname, file_bytes, profile_image.content_type or "application/octet-stream"
     )

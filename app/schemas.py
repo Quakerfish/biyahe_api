@@ -137,6 +137,22 @@ class UserProfileUpdateIn(BaseModel):
     current_password: str | None = None
     new_password: str | None = None
 
+    @field_validator("username")
+    @classmethod
+    def username_length(cls, v: str) -> str:
+        v = v.strip()
+        if not (3 <= len(v) <= 50):
+            raise ValueError("Username must be between 3 and 50 characters.")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_length(cls, v: str | None) -> str | None:
+        # Empty / missing means "don't change the password".
+        if v and len(v) < 8:
+            raise ValueError("New password must be at least 8 characters long.")
+        return v
+
 
 # ------------------------------------------------------------------ terminal
 class TerminalIn(BaseModel):
