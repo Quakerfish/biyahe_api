@@ -4,11 +4,12 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.blob import upload_blob
 from app.database import get_db
 from app.dependencies import require_user
-from app.models import RouteRating, SavedRoute, User
+from app.models import Route, RouteRating, SavedRoute, User
 from app.schemas import UserProfileUpdateIn
 from app.security import hash_password, verify_password
 
@@ -69,6 +70,47 @@ async def get_profile(user_id: int = Depends(require_user), db: AsyncSession = D
         "date_created": user.date_created,
         "saved_routes_count": saved_routes_count or 0,
         "ratings_count": ratings_count or 0,
+    }
+
+
+# ------------------------------------------------------- the user's own ratings
+@router.get("/profile/ratings")
+async def my_ratings(user_id: int = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    """
+    Every route this user has rated, newest first, with the route's code/terminals so
+    the Ratings screen can list them. (GET /profile only returns a count; the Android
+    Ratings screen used to read a `ratings` list from it that no longer exists, which is
+    why it always looked empty.)
+    """
+    rows = (
+        await db.execute(
+            select(RouteRating)
+            .options(
+                selectinload(RouteRating.route).selectinload(Route.origin),
+                selectinload(RouteRating.route).selectinload(Route.destination),
+            )
+            .where(RouteRating.rated_by_user_id == user_id)
+            .order_by(RouteRating.date_updated.desc())
+        )
+    ).scalars().all()
+
+    return {
+        "success": True,
+        "ratings": [
+            {
+                "route_id": r.route_id,
+                "route_code": r.route.route_code,
+                "vehicle_type": r.route.vehicle_type,
+                "origin_name": r.route.origin.terminal_name if r.route.origin else None,
+                "destination_name": r.route.destination.terminal_name if r.route.destination else None,
+                "route_accuracy_rating": r.route_accuracy_rating,
+                "fare_accuracy_rating": r.fare_accuracy_rating,
+                "comment": r.comment,
+                "date_created": r.date_created,
+                "date_updated": r.date_updated,
+            }
+            for r in rows
+        ],
     }
 
 
