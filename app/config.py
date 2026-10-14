@@ -18,7 +18,28 @@ class Settings(BaseSettings):
 
     # Read directly from env by the vercel-sdk Blob client too, but kept here
     # so Pydantic validates it's actually set before the app starts serving.
-    BLOB_READ_WRITE_TOKEN: str = ""
+    # Named BIYAHE_READ_WRITE_TOKEN, not the usual BLOB_READ_WRITE_TOKEN -
+    # Vercel auto-renamed it when the new Blob store was connected, since
+    # the old store (since deleted) hadn't released the "BLOB" name prefix
+    # yet at the time.
+    BIYAHE_READ_WRITE_TOKEN: str = ""
+
+    # --- Login OTP (email 2FA) ---
+    # Same EmailJS account/service/template the Android app used to call
+    # directly - just called from here instead, so the keys (especially
+    # EMAILJS_PRIVATE_KEY, which is a real access token) never ship in the APK.
+    EMAILJS_SERVICE_ID: str = ""
+    EMAILJS_TEMPLATE_ID: str = ""
+    EMAILJS_PUBLIC_KEY: str = ""
+    EMAILJS_PRIVATE_KEY: str = ""
+    # Optional separate template for the forgot-password email. Falls back to
+    # EMAILJS_TEMPLATE_ID when empty (the same {{to_email}} / {{passcode}} template works).
+    EMAILJS_RESET_TEMPLATE_ID: str = ""
+
+    OTP_EXPIRY_MINUTES: int = 10
+    OTP_MAX_ATTEMPTS: int = 5
+    # Matches the Android app's existing 45-second resend countdown UI.
+    OTP_RESEND_COOLDOWN_SECONDS: int = 45
 
     @property
     def cors_origins_list(self) -> list[str]:

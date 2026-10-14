@@ -123,6 +123,44 @@ class UserLoginIn(BaseModel):
     password: str
 
 
+class OtpVerifyIn(BaseModel):
+    code: str
+
+    @field_validator("code")
+    @classmethod
+    def code_is_six_digits(cls, v: str) -> str:
+        v = v.strip()
+        if not (len(v) == 6 and v.isdigit()):
+            raise ValueError("Enter the 6-digit code.")
+        return v
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    email: EmailStr
+    code: str
+    newPassword: str
+    confirmPassword: str
+
+    @field_validator("code")
+    @classmethod
+    def reset_code_is_six_digits(cls, v: str) -> str:
+        v = v.strip()
+        if not (len(v) == 6 and v.isdigit()):
+            raise ValueError("Enter the 6-digit code.")
+        return v
+
+    @field_validator("newPassword")
+    @classmethod
+    def new_password_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        return v
+
+
 class UserProfileOut(BaseModel):
     user_id: int
     username: str

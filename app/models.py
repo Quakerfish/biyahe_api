@@ -137,7 +137,22 @@ class LoginOtp(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True
     )
-    otp_code: Mapped[str] = mapped_column(String(6))
+    # HMAC-SHA256 hex digest of the code (64 chars), never the code itself.
+    otp_code: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PasswordResetOtp(Base):
+    """One pending forgot-password code per user (same shape as LoginOtp)."""
+
+    __tablename__ = "password_reset_otps"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True
+    )
+    otp_code: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
