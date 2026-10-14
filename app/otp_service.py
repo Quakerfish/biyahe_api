@@ -90,7 +90,13 @@ async def send_code_email(to_email: str, code: str, purpose: str) -> None:
         "user_id": settings.EMAILJS_PUBLIC_KEY,
         "accessToken": settings.EMAILJS_PRIVATE_KEY,
         "template_params": {
+            # Several aliases so the template's "To Email" box works whichever variable
+            # name it uses ({{to_email}} is what the shipped templates expect).
             "to_email": to_email,
+            "email": to_email,
+            "user_email": to_email,
+            "to": to_email,
+            "reply_to": to_email,
             "passcode": code,
             "expiry_minutes": str(settings.OTP_EXPIRY_MINUTES),
             "purpose": "password reset" if purpose == "reset" else "login verification",
