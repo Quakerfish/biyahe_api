@@ -43,6 +43,15 @@ def require_user(request: Request) -> int:
     return user_id
 
 
+def optional_user(request: Request) -> int | None:
+    """
+    Guest-friendly: the logged-in commuter's id, or None for a guest (no session).
+    Use on read-only endpoints that work for everyone but can add extras for a
+    signed-in user. Never raises, so it must not guard anything that writes.
+    """
+    return request.session.get("user_id")
+
+
 def require_pending_login(request: Request) -> int:
     """
     Between password-check and OTP-verify: username/password were already

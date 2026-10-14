@@ -4,17 +4,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies import require_user_or_admin
 from app.models import Route, Terminal
 
 router = APIRouter(prefix="/api/commuter-routes", tags=["commuter-routes"])
 
 
+# PUBLIC, read-only: guests (no login) can browse active routes, terminals and route
+# paths. Nothing here is user-specific, and there are no write methods on this router.
 @router.get("")
 async def commuter_routes(
     type: str | None = Query(default=None),
     id: int | None = Query(default=None),
-    _session=Depends(require_user_or_admin),
     db: AsyncSession = Depends(get_db),
 ):
     # Option A: terminals list (?type=terminals)

@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_user
+from app.dependencies import optional_user, require_user
 from app.models import Route, RouteRating
 from app.schemas import RouteRatingIn
 
@@ -15,8 +15,10 @@ router = APIRouter(prefix="/api/routes/{route_id}/ratings", tags=["route-ratings
 
 @router.get("")
 async def get_route_ratings(
-    route_id: int, user_id: int = Depends(require_user), db: AsyncSession = Depends(get_db)
+    route_id: int, user_id: int | None = Depends(optional_user), db: AsyncSession = Depends(get_db)
 ):
+    # Public summary (count + averages) for everyone, guests included.
+    # `my_rating` is only filled in for a signed-in user; guests get null.
     route = await db.get(Route, route_id)
     if not route:
         raise HTTPException(status_code=404, detail="Route not found.")
@@ -32,7 +34,11 @@ async def get_route_ratings(
     ).first()
     rating_count, avg_route_accuracy, avg_fare_accuracy = agg
 
-    my_rating = await db.get(RouteRating, {"route_id": route_id, "rated_by_user_id": user_id})
+    my_rating = (
+        await db.get(RouteRating, {"route_id": route_id, "rated_by_user_id": user_id})
+        if user_id
+        else None
+    )
 
     return {
         "success": True,
