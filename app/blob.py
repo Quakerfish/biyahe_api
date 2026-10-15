@@ -22,11 +22,16 @@ _BLOB_API_VERSION = "7"
 
 async def upload_blob(pathname: str, file_bytes: bytes, content_type: str) -> str:
     """Uploads a file to Vercel Blob (public access) and returns its public URL."""
+    token = settings.blob_token
+    if not token:
+        raise RuntimeError(
+            "No Vercel Blob token configured: set BLOB_READ_WRITE_TOKEN (or BIYAHE_READ_WRITE_TOKEN)."
+        )
     async with httpx.AsyncClient() as client:
         response = await client.put(
             f"{_BLOB_API_BASE}/{pathname}",
             headers={
-                "authorization": f"Bearer {settings.BLOB_READ_WRITE_TOKEN}",
+                "authorization": f"Bearer {token}",
                 "x-api-version": _BLOB_API_VERSION,
                 "x-content-type": content_type,
                 # Required - the official SDK always sends this (its put()

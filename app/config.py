@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # the old store (since deleted) hadn't released the "BLOB" name prefix
     # yet at the time.
     BIYAHE_READ_WRITE_TOKEN: str = ""
+    # Vercel names the token BLOB_READ_WRITE_TOKEN when the Blob store is (re)connected
+    # normally. Both names are accepted; blob_token below uses whichever one is set.
+    BLOB_READ_WRITE_TOKEN: str = ""
 
     # --- Login OTP (email 2FA) ---
     # Same EmailJS account/service/template the Android app used to call
@@ -40,6 +43,10 @@ class Settings(BaseSettings):
     OTP_MAX_ATTEMPTS: int = 5
     # Matches the Android app's existing 45-second resend countdown UI.
     OTP_RESEND_COOLDOWN_SECONDS: int = 45
+
+    @property
+    def blob_token(self) -> str:
+        return self.BLOB_READ_WRITE_TOKEN or self.BIYAHE_READ_WRITE_TOKEN
 
     @property
     def cors_origins_list(self) -> list[str]:
