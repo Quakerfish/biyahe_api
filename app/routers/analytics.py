@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models import Admin, Landmark, Route, SavedRoute, Terminal, User, Waypoint
+from app.models import Admin, Route, SavedRoute, Terminal, User, Waypoint
 
 router = APIRouter(prefix="/api", tags=["analytics"])
 
@@ -38,7 +38,6 @@ async def analytics(admin_id: int = Depends(require_admin), db: AsyncSession = D
     total_users = await db.scalar(select(func.count()).select_from(User))
     total_admins = await db.scalar(select(func.count()).select_from(Admin))
     total_terminals = await db.scalar(select(func.count()).select_from(Terminal))
-    total_landmarks = await db.scalar(select(func.count()).select_from(Landmark))
     total_saved = await db.scalar(select(func.count()).select_from(SavedRoute))
     total_waypoints = await db.scalar(select(func.count()).select_from(Waypoint))
 
@@ -68,7 +67,6 @@ async def analytics(admin_id: int = Depends(require_admin), db: AsyncSession = D
             "inactive_routes": inactive_routes,
             "active_route_pct": active_route_pct,
             "total_terminals": total_terminals,
-            "total_landmarks": total_landmarks,
             "total_saved_routes": total_saved,
             "total_waypoints": total_waypoints,
         },

@@ -178,15 +178,6 @@ class Terminal(Base):
     image_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
-class Landmark(Base):
-    __tablename__ = "landmarks"
-
-    landmark_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    landmark_name: Mapped[str] = mapped_column(String(150))
-    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-
-
 class Route(Base):
     __tablename__ = "routes"
 

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models import Admin, Landmark, Route, Terminal, User, Waypoint
+from app.models import Admin, Route, Terminal, User, Waypoint
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -15,7 +15,6 @@ async def dashboard(admin_id: int = Depends(require_admin), db: AsyncSession = D
     total_users = await db.scalar(select(func.count()).select_from(User))
     total_admins = await db.scalar(select(func.count()).select_from(Admin))
     total_terminals = await db.scalar(select(func.count()).select_from(Terminal))
-    total_landmarks = await db.scalar(select(func.count()).select_from(Landmark))
     total_waypoints = await db.scalar(select(func.count()).select_from(Waypoint))
 
     active_routes = await db.scalar(select(func.count()).where(Route.status == "Active"))
@@ -90,7 +89,6 @@ async def dashboard(admin_id: int = Depends(require_admin), db: AsyncSession = D
             "active_routes": active_routes,
             "inactive_routes": inactive_routes,
             "total_terminals": total_terminals,
-            "total_landmarks": total_landmarks,
             "total_waypoints": total_waypoints,
         },
         "hubs": hubs,
