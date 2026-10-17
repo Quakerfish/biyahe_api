@@ -93,6 +93,15 @@ async def login(payload: UserLoginIn, request: Request, db: AsyncSession = Depen
         await asyncio.sleep(0.3)
         raise HTTPException(status_code=401, detail="Invalid username or password.")
 
+    # A suspended account may not log in until the suspension ends.
+    if user.suspended_until is not None and user.suspended_until > now_utc():
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is suspended until "
+            + user.suspended_until.strftime("%B %d, %Y")
+            + ".",
+        )
+
     # Start from a clean session: password is right, but nothing is authenticated yet.
     request.session.clear()
 

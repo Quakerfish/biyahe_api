@@ -193,12 +193,40 @@ class UserProfileUpdateIn(BaseModel):
 
 
 # ------------------------------------------------------------------ terminal
+# Rough bounding box of Cebu City and its surroundings. Pins outside it are almost
+# certainly typos (e.g. swapped or mistyped digits), so they are rejected.
+CEBU_LAT_MIN, CEBU_LAT_MAX = 10.20, 10.50
+CEBU_LNG_MIN, CEBU_LNG_MAX = 123.72, 124.00
+
+
+def _check_cebu_lat(v: float) -> float:
+    if not (CEBU_LAT_MIN <= v <= CEBU_LAT_MAX):
+        raise ValueError(f"Latitude must be inside Cebu City ({CEBU_LAT_MIN} to {CEBU_LAT_MAX}).")
+    return v
+
+
+def _check_cebu_lng(v: float) -> float:
+    if not (CEBU_LNG_MIN <= v <= CEBU_LNG_MAX):
+        raise ValueError(f"Longitude must be inside Cebu City ({CEBU_LNG_MIN} to {CEBU_LNG_MAX}).")
+    return v
+
+
 class TerminalIn(BaseModel):
     terminal_name: str
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    latitude: float
+    longitude: float
     status: Literal["Active", "Inactive"] = "Active"
     description: str | None = None
+
+    @field_validator("latitude")
+    @classmethod
+    def lat_in_cebu(cls, v: float) -> float:
+        return _check_cebu_lat(v)
+
+    @field_validator("longitude")
+    @classmethod
+    def lng_in_cebu(cls, v: float) -> float:
+        return _check_cebu_lng(v)
 
     @field_validator("terminal_name")
     @classmethod
@@ -240,6 +268,16 @@ class WaypointIn(BaseModel):
     latitude: float
     longitude: float
 
+    @field_validator("latitude")
+    @classmethod
+    def lat_in_cebu(cls, v: float) -> float:
+        return _check_cebu_lat(v)
+
+    @field_validator("longitude")
+    @classmethod
+    def lng_in_cebu(cls, v: float) -> float:
+        return _check_cebu_lng(v)
+
 
 class WaypointOut(BaseModel):
     sequence_no: int
@@ -272,13 +310,6 @@ class RouteIn(BaseModel):
             raise ValueError("waypoints must be a non-empty array.")
         return v
 
-    @field_validator("destination_terminal_id")
-    @classmethod
-    def differs_from_origin(cls, v: int, info):
-        origin = info.data.get("origin_terminal_id")
-        if origin is not None and origin == v:
-            raise ValueError("Origin and destination terminals must differ.")
-        return v
 
 
 class RouteListItemOut(BaseModel):
